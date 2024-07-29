@@ -18,6 +18,7 @@ import { Matcher, checkResult } from '../matcher'
 
 export type gRPCStep = {
   proto: string | string[]
+  includeDirs: string | string[]
   host: string
   service: string
   method: string
@@ -93,20 +94,29 @@ export default async function (
     })
   }
 
-  const protos: string[] = []
-  if (config?.grpc?.proto) {
-    protos.push(...config.grpc.proto)
-  }
+  const gatherPaths = function(configPaths: string | string[] | undefined, 
+      stepPaths: string | string[] | undefined, 
+      optionsPath: string | undefined) : string[] {
+    const paths: string[] = [];
+    if (configPaths) {
+      paths.push(
+        ...(Array.isArray(configPaths) ? configPaths : [configPaths])
+      )
+    }
 
-  if (params.proto) {
-    protos.push(
-      ...(Array.isArray(params.proto) ? params.proto : [params.proto])
+    if (stepPaths) {
+      paths.push(
+        ...(Array.isArray(stepPaths) ? stepPaths : [stepPaths])
+      )
+    }
+
+    return paths.map((p) =>
+      path.join(path.dirname(optionsPath || __dirname), p)
     )
   }
 
-  const proto = protos.map((p) =>
-    path.join(path.dirname(options?.path || __dirname), p)
-  )
+  const proto: string[] = gatherPaths(config?.grpc?.proto, params.proto, options?.path)
+  const includeDirs: string[] = gatherPaths(config?.grpc?.includeDirs, params.includeDirs, options?.path)
 
   const request: gRPCStepRequest = {
     proto,
@@ -121,6 +131,7 @@ export default async function (
     proto,
     {
       ...request,
+      loaderOptions: { includeDirs },
       tls: tlsConfig,
       beforeRequest: (req) => {
         options?.ee?.emit('step:grpc_request', request)

@@ -65,6 +65,7 @@ export type WorkflowConfig = {
   }
   grpc?: {
     proto: string | string[]
+    includeDirs: string | string[]
   }
   concurrency?: number
 }
