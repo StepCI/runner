@@ -1,5 +1,5 @@
 import { CookieJar, Cookie } from 'tough-cookie'
-import { renderObject as liquidlessRenderObject } from 'liquidless'
+import { renderObject as liquidlessRenderObject, renderString as liquidlessRenderString } from 'liquidless'
 import { fake } from 'liquidless-faker'
 import { naughtystring } from 'liquidless-naughtystrings'
 import { EventEmitter } from 'node:events'
@@ -200,14 +200,55 @@ function renderObject<T extends object>(
   })
 }
 
+function renderString(
+  string: string,
+  props: object,
+): string {
+  return liquidlessRenderString(string, props, {
+    filters: {
+      fake,
+      naughtystring
+    },
+    delimiters: templateDelimiters
+  })
+}
+
+function map$refs(obj: any, transform: (value: any) => any): void {
+  for (let key in obj) {
+    if (key === '$ref') {
+      obj[key] = transform(obj[key]);
+    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+      map$refs(obj[key], transform);
+    }
+  }
+}
+
 // Run from test file
 export async function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const workflow = yaml.load(yamlString)
-  const dereffed = await $RefParser.dereference(workflow as any, {
+  // Parse YAML file
+  const workflow = yaml.load(yamlString) as any
+  
+  // Render templates in `workflow.env`, giving `options?.env` as the only available props
+  workflow.env = renderObject(workflow.env, { env: { ...options?.env } })
+
+  // Render templates in `$ref`s, giving `workflow.env` and `options?.env` as the only available props
+  const env = { ...workflow.env, ...options?.env }
+  map$refs(workflow, (value) => {
+    if (typeof value === 'object') {
+      return renderObject(value, { env })
+    } else {
+      return renderString(value, { env })
+    }
+  })
+
+  // Dereference `$ref`s
+  const dereffed = await $RefParser.dereference(workflow, {
     dereference: {
       circular: 'ignore'
     }
   }) as unknown as Workflow
+
+  // Run the workflow
   return run(dereffed, options)
 }
 

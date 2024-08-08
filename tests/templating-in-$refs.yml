@@ -1,0 +1,26 @@
+version: '1.1'
+name: Process templates using env in `$ref`s (https://github.com/stepci/stepci/issues/220)
+env:
+  host: https://petstore3.swagger.io/api/v3
+tests:
+  example:
+    steps:
+      - http:
+        method: POST
+        url: ${{ env.host }}/user
+        headers:
+          Content-Type: application/json
+        json:
+          {
+            'id': 10,
+            'username': 'theUser',
+            'firstName': 'John',
+            'lastName': 'James',
+            'email': 'john@email.com',
+            'password': '12345',
+            'phone': '12345',
+            'userStatus': 1,
+          }
+        check:
+          schema:
+            $ref: ${{ env.host }}/openapi.yaml#/components/schemas/User
